@@ -1,206 +1,109 @@
- TP2 — Déploiement d'un Portfolio Next.js avec Coolify et Forgejo
+# 🚀 TP2 — Déploiement d'un Portfolio Next.js avec Coolify et Forgejo
 
-Déploiement continu d'un portfolio Next.js dans une VM locale grâce à Coolify (PaaS auto-hébergé) et Forgejo (forge Git auto-hébergée), avec redéploiement automatique à chaque git push via webhook.
+Déploiement continu d'un portfolio Next.js dans une VM locale grâce à **Coolify** (PaaS auto-hébergé) et **Forgejo** (forge Git auto-hébergée), avec redéploiement automatique à chaque `git push` via webhook.
 
-Auteur : Narjess Dabbech — Master DevOps & Cloud — 2026
+**Auteur :** Narjess Dabbech — Master DevOps & Cloud — 2026
 
- Sommaire
-Objectifs
-Outils et rôles
-Environnement
-Architecture
-Partie A — Installation de Coolify
-Partie B — Forgejo et dépôt du portfolio
-Partie C — Déploiement du portfolio
-Partie D — Redéploiement automatique (webhook)
-Rollback et supervision
-Comparaison PaaS (Coolify) vs IaC (TP1)
-Difficultés rencontrées
-Structure du dépôt
-1.  Objectifs
-Installer Coolify et Forgejo dans une VM locale
-Déployer une application Next.js depuis un dépôt Forgejo, accessible par un nom d'hôte local
-Mettre en place un webhook Forgejo → Coolify : chaque git push redéploie l'application
-Pratiquer le rollback et comparer l'approche PaaS à l'approche IaC du TP1
-2.  Outils et rôles
-Outil	Rôle dans le TP
-Forgejo	Héberge le dépôt Git du portfolio ; émet le webhook à chaque push
-Coolify	Clone, construit, déploie et expose l'application
-Traefik (intégré à Coolify)	Routage HTTP par nom d'hôte
-Docker / Docker Compose	Exécution des conteneurs (Forgejo, application)
-Nixpacks	Build automatique de l'application Next.js
-3.  Environnement
-Élément	Valeur
-VM	Ubuntu 24.04 — 2 vCPU — 4 Go RAM — 20 Go disque
-IP de la VM	192.168.56.10
-Nom d'hôte local	portfolio.coolify.local (fichier hosts du poste)
-Domaine DNS / compte GitHub	Aucun (tout est local)
+---
 
-Ports utilisés dans la VM
+## 📑 Sommaire
+1. [Objectifs](#1-objectifs)
+2. [Architecture](#2-architecture)
+3. [Installation de Coolify (Partie A)](#3-installation-de-coolify-partie-a)
+4. [Forgejo et Dépôt (Partie B)](#4-forgejo-et-dépôt-partie-b)
+5. [Déploiement du Portfolio (Partie C)](#5-déploiement-du-portfolio-partie-c)
+6. [Webhook et Redéploiement Automatique (Partie D)](#6-webhook-et-redéploiement-automatique-partie-d)
+7. [Rollback et Supervision](#7-rollback-et-supervision)
+8. [Comparaison PaaS vs IaC](#8-comparaison-paas-vs-iac)
+9. [Difficultés Rencontrées](#9-difficultés-rencontrées)
 
-Port	Service
-8000	Dashboard Coolify
-80	Traefik (proxy inverse)
-3001	Forgejo (interface web)
-2222	Forgejo (SSH)
-3000	Application Next.js (interne)
-4. Architecture
-HTTP :3001
-Webhook POSTpush sur main
-git clone
-Build Nixpacks
-Poste développeurgit push
-Forgejodépôt portfolio
-Coolify :8000
-Conteneur Next.js :3000
-Traefik :80
-Navigateurportfolio.coolify.local
+---
 
-Chaîne de déploiement : push → Forgejo → webhook → Coolify (clone + build) → Traefik → navigateur.
+## 1. 🎯 Objectifs
 
-5.  Partie A — Installation de Coolify
-bash
-ip -4 a                                   # relever l'IP de la VM
-ssh <utilisateur>@192.168.56.10
+- Installer Coolify et Forgejo dans une VM locale.
+- Déployer une application Next.js depuis un dépôt Forgejo, accessible par un nom d'hôte local.
+- Mettre en place un webhook Forgejo → Coolify : chaque `git push` redéploie l'application.
+- Pratiquer le rollback et comparer l'approche PaaS (Coolify) à l'approche IaC (TP1).
+
+## 2. 🏗️ Architecture
+
+| Composant | Rôle |
+| :--- | :--- |
+| **Forgejo** | Héberge le dépôt Git du portfolio et émet le webhook. |
+| **Coolify** | Clone, construit, déploie et expose l'application. |
+| **Traefik** | Proxy inverse intégré à Coolify pour le routage HTTP. |
+
+**Chaîne de déploiement :**
+`Poste (git push) → Forgejo → Webhook → Coolify (Clone + Build) → Traefik → Navigateur`
+
+## 3. 🔧 Installation de Coolify (Partie A)
+
+Installation en une seule commande sur la VM Ubuntu :
+```bash
 curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
-docker --version && docker ps             # vérifier Docker et les conteneurs Coolify
-Ouvrir http://192.168.56.10:8000
-Créer immédiatement le compte administrateur
-Suivre l'assistant (serveur localhost)
+Accès au dashboard : http://192.168.56.20:8000
 
-Vérifications : dashboard accessible, serveur localhost en état Reachable, proxy démarré.
+Serveur localhost configuré et en état "Reachable".
 
-Dashboard Coolify
+📸 Capture : captures/coolify-dashboard.png
 
-6.  Partie B — Forgejo et dépôt du portfolio
-B.1 Installation de Forgejo
-bash
-docker compose up -d      # avec forgejo/docker-compose.yml
-docker ps                 # le conteneur « forgejo » doit être Up
+4. 🦊 Forgejo et Dépôt (Partie B)
+Déploiement de Forgejo via Docker Compose (port web 3001).
 
-Points importants du docker-compose.yml :
+Configuration initiale (SQLite3) et création du compte administrateur.
 
-Port web 3001 (le 3000 est réservé à Next.js)
-FORGEJO__webhook__ALLOWED_HOST_LIST=external,private : indispensable, sinon Forgejo refuse d'envoyer un webhook vers une adresse privée
+Création d'un dépôt public portfolio et envoi du code source.
 
-Forgejo — conteneur Docker
+📸 Captures : captures/forgejo-docker.png, captures/forgejo-install.png, captures/forgejo-repo.png
 
-B.2 Configuration initiale (http://192.168.56.10:3001)
-Champ	Valeur
-Base de données	SQLite3
-Domaine du serveur	192.168.56.10
-URL de base	http://192.168.56.10:3001/
-Administrateur	Compte créé à l'installation
+5. 🌐 Déploiement du Portfolio (Partie C)
+Ajout du nom d'hôte local dans le fichier hosts de Windows :
+192.168.56.20 portfolio.coolify.local
 
-Forgejo — installation
+Configuration dans Coolify :
 
-B.3 Dépôt du portfolio
+Source : Public Repository
 
-Dépôt portfolio créé en public (clone sans authentification par Coolify), puis :
+URL : http://192.168.56.20:3001/Narjess/portfolio.git
 
-bash
-git remote add forgejo http://192.168.56.10:3001/Narjess/portfolio.git
-git push -u forgejo main
-7.  Partie C — Déploiement du portfolio
-C.1 Nom d'hôte local
+Build Pack : Nixpacks (ou Docker Image)
 
-Ligne ajoutée au fichier hosts du poste (C:\Windows\System32\drivers\etc\hosts sous Windows) :
+Port : 3000
 
-192.168.56.10  portfolio.coolify.local
+Domaine : http://portfolio.coolify.local
 
-Test : ping portfolio.coolify.local répond depuis l'IP de la VM.
+📸 Captures : captures/coolify-config.png, captures/coolify-deploy.png, captures/portfolio.png
 
-C.2 Configuration dans Coolify
-Paramètre	Valeur
-Projet / environnement	portfolio / production
-Source	Public Repository
-Repository URL	http://192.168.56.10:3001/Narjess/portfolio.git (IP, pas de nom d'hôte)
-Branche	main
-Build Pack	Nixpacks
-Ports Exposes	3000
-Domains	http://portfolio.coolify.local (préfixe http:// obligatoire)
+6. 🔁 Webhook et Redéploiement Automatique (Partie D)
+Côté Coolify : Activation de l'auto-deploy via webhook (section Gitea).
 
-Configuration Coolify
+Côté Forgejo : Ajout du webhook avec l'URL de Coolify, un secret, et l'événement "Push".
 
-C.3 Déploiement
+Test : "Tester la livraison" renvoie un code 200 (succès).
 
-Déploiement Coolify
+📸 Captures : captures/forgejo-webhook.png, captures/coolify-autodeploy.png
 
-Vérifications
+7. ⏪ Rollback et Supervision
+Rollback : Accès à l'historique des déploiements pour restaurer une version antérieure en cas d'échec.
 
-bash
-curl -I http://portfolio.coolify.local   # HTTP 200
-docker ps                                # conteneur du portfolio visible
-Résultat
+Supervision : Utilisation des logs en temps réel et de docker stats pour surveiller les ressources.
 
-Portfolio déployé
+📸 Capture : captures/coolify-rollback.png
 
-8. 🔁 Partie D — Redéploiement automatique (webhook)
-D.1 Côté Coolify
-Application → onglet Webhooks → Manual Git Webhooks
-Section Gitea (compatible Forgejo) : saisir un secret d'au moins 16 caractères, enregistrer, copier l'URL
-Advanced → Deployment → Auto deploy : Deploy on push (webhooks)
-D.2 Côté Forgejo
-
-Dépôt → Paramètres → Webhooks → Ajouter un webhook → Forgejo
-
-Champ	Valeur
-URL cible	URL copiée depuis Coolify
-Type de contenu	application/json
-Secret	Identique à celui de Coolify
-Événement	Push
-Filtre de branche	main
-
-Clic sur Tester la livraison : réponse 2xx attendue.
-
-Webhook Forgejo
-
-D.3 Vérification
-bash
-git add . && git commit -m "Mise à jour du titre" && git push forgejo main
-
-Un nouveau déploiement apparaît automatiquement dans l'onglet Deployments de Coolify, et le site affiche la modification.
-
-Déploiement automatique
-
-9.  Rollback et supervision
-
-Rollback : une erreur de build a été poussée volontairement ; le déploiement automatique a échoué, puis la version précédente a été restaurée depuis l'onglet des déploiements. Le dépôt a ensuite été corrigé.
-
-Rollback Coolify
-
-Supervision : logs de l'application, docker stats et utilisation des ressources dans le dashboard Coolify.
-
-10.  Comparaison PaaS (Coolify) vs IaC (TP1)
-Critère	TP1 — IaC (Vagrant / Ansible / Compose)	TP2 — PaaS (Coolify)
-Mise en place	Plusieurs outils à écrire et maintenir	Installation en une commande
+8. ⚖️ Comparaison PaaS vs IaC
+Critère	TP1 — IaC (Vagrant/Ansible/Jenkins)	TP2 — PaaS (Coolify)
+Mise en place	Complexe (plusieurs outils à écrire)	Simple (une commande)
 Configuration	Fichiers versionnés (code)	Interface web
-Reproductibilité	Très forte (tout est dans Git)	Plus faible (état dans Coolify)
 Déploiement continu	Pipeline à écrire (Jenkinsfile)	Webhook + auto deploy intégrés
-Proxy / routage	À configurer (Nginx, ports)	Traefik géré automatiquement
-Contrôle fin	Total	Limité aux options de la plateforme
-Courbe d'apprentissage	Élevée	Faible
-Rollback	À scripter	Intégré à l'interface
+Proxy / Routage	À configurer manuellement (Nginx)	Traefik géré automatiquement
+Contrôle	Total	Limité aux options de la plateforme
+Rollback	À scripter	Intégré à l'interface (1 clic)
+Conclusion : L'IaC offre contrôle et reproductibilité. Le PaaS offre rapidité et simplicité.
 
-Conclusion : l'IaC offre contrôle et reproductibilité ; le PaaS offre rapidité et simplicité d'exploitation.
+9. 🛠️ Difficultés Rencontrées
+Manque de mémoire vive (RAM) : La VM (2 Go) ne supportait pas le build Next.js (plantage silencieux). Solution : construction de l'image sur une machine plus puissante, push sur Docker Hub, et utilisation de l'option "Docker Image" dans Coolify.
 
-11. Difficultés rencontrées
-Webhook refusé par Forgejo vers une IP privée → ajout de ALLOWED_HOST_LIST=external,private
-Coolify ne résout pas le fichier hosts du poste → URL du dépôt avec l'IP de la VM
-Domaine sans préfixe http:// → Coolify tentait d'obtenir un certificat HTTPS
-(Compléter avec vos propres difficultés)
-12.  Structure du dépôt
-.
-├── forgejo/
-│   └── docker-compose.yml
-├── captures/
-│   ├── coolify-dashboard.png
-│   ├── forgejo-docker.png
-│   ├── forgejo-install.png
-│   ├── coolify-config.png
-│   ├── coolify-deploy.png
-│   ├── portfolio.png
-│   ├── forgejo-webhook.png
-│   ├── coolify-autodeploy.png
-│   └── coolify-rollback.png
-└── README.md
+Bug du proxy Traefik : Erreur 404 malgré un conteneur sain. Solution : contournement en exposant directement le port 3000 sur la VM pour valider l'application.
+
+Webhook et IP privée : Forgejo refuse les requêtes vers une IP privée par défaut. Solution : configuration de ALLOWED_HOST_LIST.
