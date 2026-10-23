@@ -231,5 +231,3 @@ forjego Public Go to file t T author DELL User TP2: deploiement Coolify + Forgej
 PASTED
 
 TP2 : Déploiement d'un Portfolio Next.js avec Coolify et Forgejo Coolify : alternative open source et auto-hébergeable à Heroku, Netlify et Vercel. Forgejo : forge Git auto-hébergée (alternative à GitHub). Ce TP s’exécute entièrement en local, dans une machine virtuelle : ni domaine DNS, ni compte
-
-PASTED
